@@ -12,6 +12,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import bpy
+import cycles
 
 bl_info = {
     "name": "Realtime Materials Baker",
@@ -23,14 +24,16 @@ bl_info = {
     "warning": "",
     "category": "Generic"
 }
+data = {
+    'bl_label': "RtmbBakeSettings",
+    'bl_idname': "rtmb.BakeSettings",
+    '__annotations__': {
+                typeName.name: bpy.props.BoolProperty(name=typeName.name)
+                for typeName in cycles.properties.CyclesRenderSettings.bl_rna.properties['bake_type'].enum_items_static
+    }
+}
 
-
-class BakeSettings(bpy.types.PropertyGroup):
-    bake_diffuse: bpy.props.BoolProperty(name="Bake Diffuse")
-    bake_normal: bpy.props.BoolProperty(name="Bake Normal")
-    bake_specular: bpy.props.BoolProperty(name="Bake Specular")
-    use_object_uv: bpy.props.BoolProperty(name="Use Object UV")
-    # file_path: bpy.props.StringProperty(name="File path")
+BakeSettings = type("BakeSettings", (bpy.types.PropertyGroup,), data)
 
 
 class MATERIAL_PT_rtmb_panel(bpy.types.Panel):
@@ -38,7 +41,7 @@ class MATERIAL_PT_rtmb_panel(bpy.types.Panel):
     bl_label = "Realtime Materials Baker"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Realtime Materials Baker"
+    bl_category = "Realtime Materials"
 
     def draw(self, context):
         layout = self.layout
@@ -50,7 +53,7 @@ class MATERIAL_PT_rtmb_panel(bpy.types.Panel):
             if key not in excluded_keys:
                 layout.prop(context.scene.rtmb_props, key)
         layout.split()
-        layout.prop(context.scene.rtmb_props, "use_object_uv")
+        # layout.prop(context.scene.rtmb_props, "use_object_uv")
         layout.operator("object.bake", icon='RENDER_STILL')
 
 
@@ -61,11 +64,15 @@ classes = (
 
 
 def register():
+    # bpy.utils.register_class(my_new_type)
     for cls in classes:
         bpy.utils.register_class(cls)
+    print(
+        cycles.properties.CyclesRenderSettings.bl_rna.properties['bake_type'].enum_items_static[0].name)
     bpy.types.Scene.rtmb_props = bpy.props.PointerProperty(type=BakeSettings)
 
 
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
+    # bpy.utils.unregister_class(my_new_type)
