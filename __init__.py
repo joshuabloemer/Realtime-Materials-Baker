@@ -33,7 +33,16 @@ data = {
     }
 }
 
-BakeSettings = type("BakeSettings", (bpy.types.PropertyGroup,), data)
+
+class RTMB_props(bpy.types.PropertyGroup):
+    xSize: bpy.props.IntProperty(name="Resolution x")
+    ySize: bpy.props.IntProperty(name="y")
+    path: bpy.props.StringProperty(
+        name="",
+        description="Path to Directory",
+        default="C:\\TEMP\\baked",
+        maxlen=1024,
+        subtype='DIR_PATH')
 
 
 class MATERIAL_PT_rtmb_panel(bpy.types.Panel):
@@ -46,7 +55,8 @@ class MATERIAL_PT_rtmb_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        layout.prop(context.scene.render, "filepath", text="File Path")
+        layout.prop(context.scene.rtmb_props, "path",
+                    text="File Path")
         excluded_keys = ["use_object_uv"]
 
         for key in context.scene.rtmb_props.__annotations__.keys():
