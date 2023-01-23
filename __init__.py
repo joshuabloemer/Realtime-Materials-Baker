@@ -15,8 +15,6 @@ import typing
 import bpy
 import _bpy
 import cycles
-from functools import partial
-from time import sleep
 
 bl_info = {
     "name": "Realtime Materials Baker",
