@@ -40,14 +40,15 @@ IncludedBakeTypes = type("IncludedBakeTypes", (bpy.types.PropertyGroup,), data)
 
 
 class RTMB_props(bpy.types.PropertyGroup):
-    xSize: bpy.props.IntProperty(name="Resolution x")
-    ySize: bpy.props.IntProperty(name="y")
+    xSize: bpy.props.IntProperty(name="X", default=1024)
+    ySize: bpy.props.IntProperty(name="Y", default=1024)
     path: bpy.props.StringProperty(
         name="",
         description="Path to Directory",
         default="C:\\TEMP\\baked",
         maxlen=1024,
         subtype='DIR_PATH')
+    use_uv: bpy.props.BoolProperty(name="Use UV", default=True)
 
 
 class MATERIAL_PT_rtmb_panel(bpy.types.Panel):
@@ -59,16 +60,27 @@ class MATERIAL_PT_rtmb_panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
 
         layout.prop(context.scene.rtmb_props, "path",
                     text="File Path")
-        excluded_keys = ["use_object_uv"]
+
+        col = layout.column(align=True)
+        col.prop(context.scene.rtmb_props, "xSize", text="Resolution X")
+        col.prop(context.scene.rtmb_props, "ySize", text="Y")
+
+        layout.prop(context.scene.rtmb_props, "use_uv")
+
+        typeBox = layout.box()
+        typeBox.label(text="Included bake types")
+        typeBox.use_property_split = False
 
         for key in context.scene.rtmb_types.__annotations__.keys():
-            if key not in excluded_keys:
-                layout.prop(context.scene.rtmb_types, key)
+            typeBox.prop(context.scene.rtmb_types, key)
+
         layout.split()
-        # layout.prop(context.scene.rtmb_types, "use_object_uv")
+
         layout.operator("rtmb.bake", icon='RENDER_STILL')
 
 # mostly undocumented api features, see here for an explanation:
@@ -122,7 +134,8 @@ class RTMB_OT_bake_pre(bpy.types.Operator):
 
         # You can choose your texture size (This will be the de bake image)
         image_name = obj.name + '_' + self.bake_type + '_Baked'
-        img = bpy.data.images.new(image_name, 1024, 1024)
+        img = bpy.data.images.new(
+            image_name, context.scene.rtmb_props.xSize, context.scene.rtmb_props.ySize)
         context.scene.rtmb_img = img
         for mat in obj.data.materials:
             mat.use_nodes = True  # Here it is assumed that the materials have been created with nodes, otherwise it would not be possible to assign a node for the Bake, so this step is a bit useless
@@ -160,13 +173,17 @@ class RTMB_OT_bake_post(bpy.types.Operator):
         bpy.data.images.remove(img)
         return {"FINISHED"}
 
+
 # main baking operator
-
-
 class WM_OT_bake_modal(bpy.types.Operator):
     bl_idname = "rtmb.bake"
     bl_label = "Bake"
+    bl_description = "Bake the selected texture maps to file"
     bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(self, context):
+        return context.selected_objects and context.scene.render.engine == 'CYCLES'
 
     def modal(self, context, event):
 
@@ -201,10 +218,6 @@ class WM_OT_bake_modal(bpy.types.Operator):
                          for key in bakeTypes.__annotations__.keys()
                          if getattr(bakeTypes, key)]
 
-        print(includedTypes)
-
-        bakeSettingsBackup = None
-
         for bakeType in includedTypes:
             print("Baking: " + bakeType)
 
@@ -225,8 +238,6 @@ class WM_OT_bake_modal(bpy.types.Operator):
 
             post = getattr(macro, f"bake_post{bakeType}")
             post.properties.bake_type = bakeType
-
-            # print(getattr(macro, f"bake_pre{bakeType}").properties.bake_type)
 
         # define a last sub-op that tells the modal the bakes are done
         define(macro, 'WM_OT_bake_set_finished')
