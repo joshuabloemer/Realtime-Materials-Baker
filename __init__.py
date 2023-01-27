@@ -168,7 +168,8 @@ class RTMB_OT_bake_post(bpy.types.Operator):
             for n in mat.node_tree.nodes:
                 if n.name == 'Bake_node':
                     mat.node_tree.nodes.remove(n)
-        bpy.data.images.remove(img)
+        # this sould throw an exception access violation
+        # bpy.data.images.remove(img)
         return {"FINISHED"}
 
 
