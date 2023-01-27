@@ -136,14 +136,14 @@ class RTMB_OT_bake_pre(bpy.types.Operator):
         img = bpy.data.images.new(
             image_name, context.scene.rtmb_props.xSize, context.scene.rtmb_props.ySize)
         context.scene.rtmb_img = img
-        for mat in obj.data.materials:
-            mat.use_nodes = True  # Here it is assumed that the materials have been created with nodes, otherwise it would not be possible to assign a node for the Bake, so this step is a bit useless
-            nodes = mat.node_tree.nodes
-            texture_node = nodes.new('ShaderNodeTexImage')
-            texture_node.name = 'Bake_node'
-            texture_node.select = True
-            nodes.active = texture_node
-            texture_node.image = img  # Assign the image to the node
+        mat = obj.data.materials[0]
+        mat.use_nodes = True  # Here it is assumed that the materials have been created with nodes, otherwise it would not be possible to assign a node for the Bake, so this step is a bit useless
+        nodes = mat.node_tree.nodes
+        texture_node = nodes.new('ShaderNodeTexImage')
+        texture_node.name = 'Bake_node'
+        texture_node.select = True
+        nodes.active = texture_node
+        texture_node.image = img  # Assign the image to the node
 
         return {"FINISHED"}
 
