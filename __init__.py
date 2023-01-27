@@ -127,12 +127,11 @@ class RTMB_OT_bake_pre(bpy.types.Operator):
     use_uv: bpy.props.BoolProperty(default=False)
 
     def execute(self, context):
-        print(self.bake_type)
-        print(bpy.types.Scene.rtmb_obj)
+
+        print(f"Baking {bpy.types.Scene.rtmb_obj.name} {self.bake_type}")
 
         obj = context.scene.rtmb_obj
 
-        # You can choose your texture size (This will be the de bake image)
         image_name = obj.name + '_' + self.bake_type + '_Baked'
         img = bpy.data.images.new(
             image_name, context.scene.rtmb_props.xSize, context.scene.rtmb_props.ySize)
@@ -158,14 +157,13 @@ class RTMB_OT_bake_post(bpy.types.Operator):
     use_uv: bpy.props.BoolProperty(default=False)
 
     def execute(self, context):
-        print(self.bake_type)
 
         img = context.scene.rtmb_img
-        obj = bpy.context.active_object
+        obj = context.scene.rtmb_obj
         img.save_render(
-            filepath=f'{context.scene.rtmb_props.path}\\{self.bake_type}.png')
+            filepath=f'{context.scene.rtmb_props.path}\\{obj.name}_{self.bake_type}.png')
 
-        # In the last step, we are going to delete the nodes we created earlier
+        # Clean up nodes
         for mat in obj.data.materials:
             for n in mat.node_tree.nodes:
                 if n.name == 'Bake_node':
@@ -182,7 +180,7 @@ class WM_OT_bake_modal(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     @classmethod
-    def poll(self, context):
+    def poll(cls, context):
         return context.selected_objects and context.scene.render.engine == 'CYCLES'
 
     def modal(self, context, event):
@@ -218,32 +216,37 @@ class WM_OT_bake_modal(bpy.types.Operator):
                          for key in bakeTypes.__annotations__.keys()
                          if getattr(bakeTypes, key)]
 
-        for bakeType in includedTypes:
-            print("Baking: " + bakeType)
+        for object in context.selected_objects:
 
-            # sub-operators can be stored on the macro itself
-            setattr(macro, f"bake_pre{bakeType}",
-                    define(macro, "RTMB_OT_bake_pre"))
-            setattr(macro, f"bake_{bakeType}", define(macro, sub_op))
+            # skip to the next object if the current object has no material slots
+            if not object.material_slots:
+                continue
 
-            setattr(macro, f"bake_post{bakeType}",
-                    define(macro, "RTMB_OT_bake_post"))
+            for bakeType in includedTypes:
 
-            pre = getattr(macro, f"bake_pre{bakeType}")
-            pre.properties.bake_type = bakeType
-            bpy.types.Scene.rtmb_obj = context.active_object
+                # sub-operators can be stored on the macro itself
+                setattr(macro, f"bake_pre_{object.name}_{bakeType}",
+                        define(macro, "RTMB_OT_bake_pre"))
 
-            bake = getattr(macro, f"bake_{bakeType}")
-            bake.properties.type = bakeType
+                setattr(macro, f"bake_{object.name}_{bakeType}", define(
+                    macro, sub_op))
 
-            post = getattr(macro, f"bake_post{bakeType}")
-            post.properties.bake_type = bakeType
+                setattr(macro, f"bake_post_{object.name}_{bakeType}",
+                        define(macro, "RTMB_OT_bake_post"))
+
+                pre = getattr(macro, f"bake_pre_{object.name}_{bakeType}")
+                pre.properties.bake_type = bakeType
+                bpy.types.Scene.rtmb_obj = object
+
+                bake = getattr(macro, f"bake_{object.name}_{bakeType}")
+                bake.properties.type = bakeType
+
+                post = getattr(
+                    macro, f"bake_post_{object.name}_{bakeType}")
+                post.properties.bake_type = bakeType
 
         # define a last sub-op that tells the modal the bakes are done
         define(macro, 'WM_OT_bake_set_finished')
-        # define(macro, 'RTMB_OT_bake_pre')
-        # set some operator property for the first bake
-        # macro.bake_1.properties.margin = 24
 
         # 'INVOKE_DEFAULT' keeps the ui responsive. this is propagated onto the sub-ops
         bpy.ops.object.bake_macro('INVOKE_DEFAULT')
@@ -266,7 +269,6 @@ classes = (
 
 
 def register():
-    # bpy.utils.register_class(my_new_type)
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.rtmb_props = bpy.props.PointerProperty(type=RTMB_props)
