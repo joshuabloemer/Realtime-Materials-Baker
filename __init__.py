@@ -11,10 +11,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import typing
 import bpy
 import _bpy
 import cycles
+import bmesh
 
 bl_info = {
     "name": "Realtime Materials Baker",
@@ -121,16 +121,18 @@ def init_macro():
 class RTMB_OT_bake_pre(bpy.types.Operator):
     bl_idname = "rtmb.bake_pre"
     bl_label = "Bake Settings Change"
-    bl_options = {'REGISTER'}
+    bl_options = {'INTERNAL'}
 
     bake_type: bpy.props.StringProperty(default="AO")
-    use_uv: bpy.props.BoolProperty(default=False)
+    use_uv: bpy.props.BoolProperty(default=True)
 
     def execute(self, context):
 
-        print(f"Baking {bpy.types.Scene.rtmb_obj.name} {self.bake_type}")
+        obj = context.scene.rtmb_queue[0].object
+        context.scene.rtmb_queue.remove(0)
+        context.scene.rtmb_obj = obj
 
-        obj = context.scene.rtmb_obj
+        print(f"Baking {obj.name} {self.bake_type}")
 
         image_name = obj.name + '_' + self.bake_type + '_Baked'
         img = bpy.data.images.new(
@@ -145,16 +147,23 @@ class RTMB_OT_bake_pre(bpy.types.Operator):
         nodes.active = texture_node
         texture_node.image = img  # Assign the image to the node
 
+        for selected in context.selected_objects:
+            selected.select_set(False)
+
+        obj.select_set(True)
+
+        #
+        # context.view_layer.update()
         return {"FINISHED"}
 
 
 class RTMB_OT_bake_post(bpy.types.Operator):
     bl_idname = "rtmb.bake_post"
     bl_label = "Bake Settings Change"
-    bl_options = {'REGISTER'}
+    bl_options = {'INTERNAL'}
 
     bake_type: bpy.props.StringProperty(default="AO")
-    use_uv: bpy.props.BoolProperty(default=False)
+    use_uv: bpy.props.BoolProperty(default=True)
 
     def execute(self, context):
 
@@ -168,7 +177,7 @@ class RTMB_OT_bake_post(bpy.types.Operator):
             for n in mat.node_tree.nodes:
                 if n.name == 'Bake_node':
                     mat.node_tree.nodes.remove(n)
-        # this sould throw an exception access violation
+        # this would throw an exception access violation
         # bpy.data.images.remove(img)
         return {"FINISHED"}
 
@@ -180,9 +189,11 @@ class WM_OT_bake_modal(bpy.types.Operator):
     bl_description = "Bake the selected texture maps to file"
     bl_options = {'REGISTER'}
 
+    is_running = False
+
     @classmethod
     def poll(cls, context):
-        return context.selected_objects and context.scene.render.engine == 'CYCLES'
+        return context.selected_objects and context.scene.render.engine == 'CYCLES' and not cls.is_running
 
     def modal(self, context, event):
 
@@ -191,11 +202,16 @@ class WM_OT_bake_modal(bpy.types.Operator):
             wm.event_timer_remove(self.refresh)
             self.report({'INFO'}, "Finished baking")
             del bpy.app.driver_namespace['bake_set_finished']
+            cls = self.__class__
+            cls.is_running = False
+
             return {'FINISHED'}
 
         return {'PASS_THROUGH'}
 
     def invoke(self, context, event):
+        cls = self.__class__
+        cls.is_running = True
 
         macro = init_macro()
 
@@ -206,6 +222,7 @@ class WM_OT_bake_modal(bpy.types.Operator):
 
         sub_op = 'OBJECT_OT_bake'
         define = _bpy.ops.macro_define
+
         # map display name to internal name
         map = {
             typeName.name: typeName.identifier
@@ -217,34 +234,55 @@ class WM_OT_bake_modal(bpy.types.Operator):
                          for key in bakeTypes.__annotations__.keys()
                          if getattr(bakeTypes, key)]
 
+        # remove objects without materials from selection
+        for object in context.selected_objects:
+            if not object.material_slots:
+                object.select_set(False)
+
+        # for some reason an object with materials needs to be active
+        context.view_layer.objects.active = context.selected_objects[0]
+
         for object in context.selected_objects:
 
-            # skip to the next object if the current object has no material slots
-            if not object.material_slots:
-                continue
+            if not context.scene.rtmb_props.use_uv:
+
+                mesh = bpy.data.meshes.new("RTMB_TEX_BAKE_OBJ")
+                bake_obj = bpy.data.objects.new("RTMB_TEX_BAKE_OBJ", mesh)
+                bpy.context.collection.objects.link(bake_obj)
+                bm = bmesh.new()
+                bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1)
+                bm.to_mesh(mesh)
+                bake_obj.data.materials.append(object.data.materials[0])
+
+            else:
+                bake_obj = object
 
             for bakeType in includedTypes:
 
                 # sub-operators can be stored on the macro itself
-                setattr(macro, f"bake_pre_{object.name}_{bakeType}",
+                setattr(macro, f"bake_pre_{bake_obj.name}_{bakeType}",
                         define(macro, "RTMB_OT_bake_pre"))
 
-                setattr(macro, f"bake_{object.name}_{bakeType}", define(
+                setattr(macro, f"bake_{bake_obj.name}_{bakeType}", define(
                     macro, sub_op))
 
-                setattr(macro, f"bake_post_{object.name}_{bakeType}",
+                setattr(macro, f"bake_post_{bake_obj.name}_{bakeType}",
                         define(macro, "RTMB_OT_bake_post"))
 
-                pre = getattr(macro, f"bake_pre_{object.name}_{bakeType}")
+                pre = getattr(macro, f"bake_pre_{bake_obj.name}_{bakeType}")
                 pre.properties.bake_type = bakeType
-                bpy.types.Scene.rtmb_obj = object
+                pre.properties.use_uv = context.scene.rtmb_props.use_uv
 
-                bake = getattr(macro, f"bake_{object.name}_{bakeType}")
+                item = context.scene.rtmb_queue.add()
+                item.object = bake_obj
+
+                bake = getattr(macro, f"bake_{bake_obj.name}_{bakeType}")
                 bake.properties.type = bakeType
 
                 post = getattr(
-                    macro, f"bake_post_{object.name}_{bakeType}")
+                    macro, f"bake_post_{bake_obj.name}_{bakeType}")
                 post.properties.bake_type = bakeType
+                post.properties.use_uv = context.scene.rtmb_props.use_uv
 
         # define a last sub-op that tells the modal the bakes are done
         define(macro, 'WM_OT_bake_set_finished')
@@ -259,12 +297,20 @@ class WM_OT_bake_modal(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
 
+class ObjList(bpy.types.PropertyGroup):
+    object: bpy.props.PointerProperty(
+        name="Object",
+        type=bpy.types.Object,
+    )
+
+
 classes = (
     MATERIAL_PT_rtmb_panel,
     RTMB_OT_bake_pre,
     RTMB_OT_bake_post,
     WM_OT_bake_modal,
     RTMB_props,
+    ObjList,
     IncludedBakeTypes,
 )
 
@@ -276,6 +322,7 @@ def register():
     bpy.types.Scene.rtmb_types = bpy.props.PointerProperty(
         type=IncludedBakeTypes)
     bpy.types.Scene.rtmb_obj = bpy.props.PointerProperty(type=bpy.types.Object)
+    bpy.types.Scene.rtmb_queue = bpy.props.CollectionProperty(type=ObjList)
     bpy.types.Scene.rtmb_img = bpy.props.PointerProperty(type=bpy.types.Image)
 
 
