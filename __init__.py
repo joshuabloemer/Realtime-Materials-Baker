@@ -152,8 +152,6 @@ class RTMB_OT_bake_pre(bpy.types.Operator):
 
         obj.select_set(True)
 
-        #
-        # context.view_layer.update()
         return {"FINISHED"}
 
 
@@ -245,14 +243,20 @@ class WM_OT_bake_modal(bpy.types.Operator):
         for object in context.selected_objects:
 
             if not context.scene.rtmb_props.use_uv:
-
-                mesh = bpy.data.meshes.new("RTMB_TEX_BAKE_OBJ")
-                bake_obj = bpy.data.objects.new("RTMB_TEX_BAKE_OBJ", mesh)
-                bpy.context.collection.objects.link(bake_obj)
-                bm = bmesh.new()
-                bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1)
-                bm.to_mesh(mesh)
+                # use bpy.ops to avoid having to create new uvs
+                bpy.ops.mesh.primitive_plane_add()
+                bake_obj = context.active_object
+                bake_obj.name = "RTMB_TEX_BAKE_OBJ"
+                # mesh = bpy.data.meshes.new("RTMB_TEX_BAKE_OBJ")
+                # bake_obj = bpy.data.objects.new("RTMB_TEX_BAKE_OBJ", mesh)
+                # bpy.context.collection.objects.link(bake_obj)
+                # bm = bmesh.new()
+                # bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1)
+                # bm.to_mesh(mesh)
                 bake_obj.data.materials.append(object.data.materials[0])
+                # object.select_set(False)
+                # bake_obj.select_set(True)
+                # context.view_layer.update()
 
             else:
                 bake_obj = object
