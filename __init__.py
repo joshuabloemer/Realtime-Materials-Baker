@@ -167,16 +167,26 @@ class RTMB_OT_bake_post(bpy.types.Operator):
 
         img = context.scene.rtmb_img
         obj = context.scene.rtmb_obj
-        img.save_render(
-            filepath=f'{context.scene.rtmb_props.path}\\{obj.name}_{self.bake_type}.png')
+        mat = obj.data.materials[0]
+        if self.use_uv:
+            path = f'{context.scene.rtmb_props.path}\\{obj.name}_{self.bake_type}.png'
+        else:
+            path = f'{context.scene.rtmb_props.path}\\{mat.name}_{self.bake_type}.png'
+
+        img.save_render(filepath=path)
 
         # Clean up nodes
-        for mat in obj.data.materials:
-            for n in mat.node_tree.nodes:
-                if n.name == 'Bake_node':
-                    mat.node_tree.nodes.remove(n)
-        # this would throw an exception access violation
-        # bpy.data.images.remove(img)
+
+        for n in mat.node_tree.nodes:
+            if n.name == 'Bake_node':
+                mat.node_tree.nodes.remove(n)
+
+        bpy.data.images.remove(img)
+
+        # delete plane generated for baking
+        # if not self.use_uv:
+        # bpy.data.meshes.remove(obj.data)
+        # bpy.data.objects.remove(obj)
         return {"FINISHED"}
 
 
