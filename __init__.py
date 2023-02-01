@@ -18,13 +18,13 @@ import bmesh
 
 bl_info = {
     "name": "Realtime Materials Baker",
-    "author": "Joshua Blömer",
-    "description": "",
+    "author": "Ducky 3D, Joshua Blömer",
+    "description": "A simple addon that simplifies the process of baking textures",
     "blender": (2, 83, 0),
-    "version": (0, 0, 1),
-    "location": "",
+    "version": (0, 9, 0),
+    "location": "N-Panel > Realtim Materials",
     "warning": "",
-    "category": "Generic"
+    "category": "Material"
 }
 
 data = {
