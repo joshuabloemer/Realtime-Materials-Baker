@@ -40,15 +40,24 @@ IncludedBakeTypes = type("IncludedBakeTypes", (bpy.types.PropertyGroup,), data)
 
 
 class RTMB_props(bpy.types.PropertyGroup):
-    xSize: bpy.props.IntProperty(name="X", default=1024)
-    ySize: bpy.props.IntProperty(name="Y", default=1024)
+    xSize: bpy.props.IntProperty(
+        name="Resolution X", description="Number of horizontal pixels in the baked image", default=1024)
+
+    ySize: bpy.props.IntProperty(
+        name="Resolution Y", description="Number of vertical pixels in the baked image", default=1024)
+
     path: bpy.props.StringProperty(
-        name="",
-        description="Path to Directory",
+        name="File path",
+        description="The directory baked images will be saved in",
         default="C:\\TEMP\\baked",
         maxlen=1024,
         subtype='DIR_PATH')
-    use_uv: bpy.props.BoolProperty(name="Use UV", default=True)
+
+    use_uv: bpy.props.BoolProperty(
+        name="Use UV",
+        description="""Bake textures to the uv maps of the selected objects
+If this is unchecked the textures will be baked as a square image""",
+        default=True)
 
 
 class MATERIAL_PT_rtmb_panel(bpy.types.Panel):
