@@ -144,7 +144,6 @@ class RTMB_OT_bake_pre(bpy.types.Operator):
     def execute(self, context):
 
         bake_obj = context.scene.rtmb_queue[0].object
-        # print(bake_obj.name)
         if not self.use_uv:
             obj = context.scene.rtmb_plane
             obj.data.materials.append(bake_obj.data.materials[0])
@@ -173,7 +172,6 @@ class RTMB_OT_bake_pre(bpy.types.Operator):
             selected.select_set(False)
 
         obj.select_set(True)
-        # print(obj.name)
 
         if self.use_uv:
             print(f"Baking {obj.name} {self.bake_type}")
@@ -204,18 +202,16 @@ class RTMB_OT_bake_post(bpy.types.Operator):
         img.save_render(filepath=path)
 
         # Clean up nodes
-
         for n in mat.node_tree.nodes:
             if n.name == 'Bake_node':
                 mat.node_tree.nodes.remove(n)
 
         bpy.data.images.remove(img)
 
-        # delete plane generated for baking
+        # remove baked material from plane
         if not self.use_uv:
-            # bpy.data.meshes.remove(obj.data)
             context.scene.rtmb_plane.data.materials.pop()
-            # bpy.data.objects.remove(obj)
+
         return {"FINISHED"}
 
 
@@ -307,24 +303,7 @@ class WM_OT_bake_modal(bpy.types.Operator):
         context.view_layer.objects.active = context.selected_objects[0]
 
         for object in context.selected_objects:
-
-            #     # use bpy.ops to avoid having to create new uvs
-
-            #     # mesh = bpy.data.meshes.new("RTMB_TEX_BAKE_OBJ")
-            #     # bake_obj = bpy.data.objects.new("RTMB_TEX_BAKE_OBJ", mesh)
-            #     # bpy.context.collection.objects.link(bake_obj)
-            #     # bm = bmesh.new()
-            #     # bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1)
-            #     # bm.to_mesh(mesh)
-
-            #     # object.select_set(False)
-            #     # bake_obj.select_set(True)
-            #     # context.view_layer.update()
-
-            # else:
             bake_obj = object
-            # print(object)
-            # print(bake_obj)
 
             for bakeType in includedTypes:
 
@@ -344,8 +323,6 @@ class WM_OT_bake_modal(bpy.types.Operator):
 
                 item = context.scene.rtmb_queue.add()
                 item.object = bake_obj
-                # print(bake_obj)
-                # print(item.object)
 
                 bake = getattr(macro, f"bake_{bake_obj.name}_{bakeType}")
                 bake.properties.type = bakeType
