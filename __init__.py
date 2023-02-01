@@ -201,7 +201,17 @@ class WM_OT_bake_modal(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.selected_objects and context.scene.render.engine == 'CYCLES' and not cls.is_running
+        for object in context.selected_objects:
+            if object.material_slots:
+                break
+        else:
+            return False
+
+        bakeTypes = context.scene.rtmb_types
+        for key in bakeTypes.__annotations__.keys():
+            if getattr(bakeTypes, key):
+                return context.selected_objects and context.scene.render.engine == 'CYCLES' and not cls.is_running
+        return False
 
     def modal(self, context, event):
 
