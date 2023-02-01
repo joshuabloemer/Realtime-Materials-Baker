@@ -102,7 +102,13 @@ def init_macro():
         bl_label = "Bake Set Finished"
         bl_options = {'INTERNAL'}
 
+        use_uv: bpy.props.BoolProperty()
+
         def execute(self, context):
+            if not self.use_uv:
+                mesh = context.scene.rtmb_plane.data
+                bpy.data.objects.remove(context.scene.rtmb_plane)
+                bpy.data.meshes.remove(mesh)
             dns = bpy.app.driver_namespace
             dns['bake_set_finished'] = True
             return {'FINISHED'}
@@ -128,11 +134,18 @@ class RTMB_OT_bake_pre(bpy.types.Operator):
 
     def execute(self, context):
 
-        obj = context.scene.rtmb_queue[0].object
-        context.scene.rtmb_queue.remove(0)
-        context.scene.rtmb_obj = obj
+        bake_obj = context.scene.rtmb_queue[0].object
+        # print(bake_obj.name)
+        if not self.use_uv:
+            obj = context.scene.rtmb_plane
+            obj.data.materials.append(bake_obj.data.materials[0])
 
-        print(f"Baking {obj.name} {self.bake_type}")
+        else:
+            obj = bake_obj
+
+        context.scene.rtmb_queue.remove(0)
+
+        context.scene.rtmb_obj = obj
 
         image_name = obj.name + '_' + self.bake_type + '_Baked'
         img = bpy.data.images.new(
@@ -151,6 +164,12 @@ class RTMB_OT_bake_pre(bpy.types.Operator):
             selected.select_set(False)
 
         obj.select_set(True)
+        # print(obj.name)
+
+        if self.use_uv:
+            print(f"Baking {obj.name} {self.bake_type}")
+        else:
+            print(f"Baking {mat.name} {self.bake_type}")
 
         return {"FINISHED"}
 
@@ -184,9 +203,10 @@ class RTMB_OT_bake_post(bpy.types.Operator):
         bpy.data.images.remove(img)
 
         # delete plane generated for baking
-        # if not self.use_uv:
-        # bpy.data.meshes.remove(obj.data)
-        # bpy.data.objects.remove(obj)
+        if not self.use_uv:
+            # bpy.data.meshes.remove(obj.data)
+            context.scene.rtmb_plane.data.materials.pop()
+            # bpy.data.objects.remove(obj)
         return {"FINISHED"}
 
 
@@ -253,33 +273,49 @@ class WM_OT_bake_modal(bpy.types.Operator):
                          if getattr(bakeTypes, key)]
 
         # remove objects without materials from selection
+
+        selected_backup = []
+
         for object in context.selected_objects:
             if not object.material_slots:
                 object.select_set(False)
+            else:
+                selected_backup.append(object)
+
+        if not context.scene.rtmb_props.use_uv:
+            bpy.ops.mesh.primitive_plane_add()
+            obj = context.active_object
+            obj.name = "RTMB_TEX_BAKE_OBJ"
+            context.scene.rtmb_plane = obj
+
+        for object in context.selected_objects:
+            object.select_set(False)
+
+        for object in selected_backup:
+            object.select_set(True)
 
         # for some reason an object with materials needs to be active
         context.view_layer.objects.active = context.selected_objects[0]
 
         for object in context.selected_objects:
 
-            if not context.scene.rtmb_props.use_uv:
-                # use bpy.ops to avoid having to create new uvs
-                bpy.ops.mesh.primitive_plane_add()
-                bake_obj = context.active_object
-                bake_obj.name = "RTMB_TEX_BAKE_OBJ"
-                # mesh = bpy.data.meshes.new("RTMB_TEX_BAKE_OBJ")
-                # bake_obj = bpy.data.objects.new("RTMB_TEX_BAKE_OBJ", mesh)
-                # bpy.context.collection.objects.link(bake_obj)
-                # bm = bmesh.new()
-                # bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1)
-                # bm.to_mesh(mesh)
-                bake_obj.data.materials.append(object.data.materials[0])
-                # object.select_set(False)
-                # bake_obj.select_set(True)
-                # context.view_layer.update()
+            #     # use bpy.ops to avoid having to create new uvs
 
-            else:
-                bake_obj = object
+            #     # mesh = bpy.data.meshes.new("RTMB_TEX_BAKE_OBJ")
+            #     # bake_obj = bpy.data.objects.new("RTMB_TEX_BAKE_OBJ", mesh)
+            #     # bpy.context.collection.objects.link(bake_obj)
+            #     # bm = bmesh.new()
+            #     # bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1)
+            #     # bm.to_mesh(mesh)
+
+            #     # object.select_set(False)
+            #     # bake_obj.select_set(True)
+            #     # context.view_layer.update()
+
+            # else:
+            bake_obj = object
+            # print(object)
+            # print(bake_obj)
 
             for bakeType in includedTypes:
 
@@ -299,6 +335,8 @@ class WM_OT_bake_modal(bpy.types.Operator):
 
                 item = context.scene.rtmb_queue.add()
                 item.object = bake_obj
+                # print(bake_obj)
+                # print(item.object)
 
                 bake = getattr(macro, f"bake_{bake_obj.name}_{bakeType}")
                 bake.properties.type = bakeType
@@ -309,7 +347,9 @@ class WM_OT_bake_modal(bpy.types.Operator):
                 post.properties.use_uv = context.scene.rtmb_props.use_uv
 
         # define a last sub-op that tells the modal the bakes are done
-        define(macro, 'WM_OT_bake_set_finished')
+        setattr(macro, "finished", define(macro, 'WM_OT_bake_set_finished'))
+        finished = getattr(macro, "finished")
+        finished.properties.use_uv = context.scene.rtmb_props.use_uv
 
         # 'INVOKE_DEFAULT' keeps the ui responsive. this is propagated onto the sub-ops
         bpy.ops.object.bake_macro('INVOKE_DEFAULT')
@@ -346,6 +386,8 @@ def register():
     bpy.types.Scene.rtmb_types = bpy.props.PointerProperty(
         type=IncludedBakeTypes)
     bpy.types.Scene.rtmb_obj = bpy.props.PointerProperty(type=bpy.types.Object)
+    bpy.types.Scene.rtmb_plane = bpy.props.PointerProperty(
+        type=bpy.types.Object)
     bpy.types.Scene.rtmb_queue = bpy.props.CollectionProperty(type=ObjList)
     bpy.types.Scene.rtmb_img = bpy.props.PointerProperty(type=bpy.types.Image)
 
