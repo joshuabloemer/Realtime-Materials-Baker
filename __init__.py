@@ -81,12 +81,12 @@ class MATERIAL_PT_rtmb_panel(bpy.types.Panel):
 
         layout.prop(context.scene.rtmb_props, "use_uv")
 
-        typeBox = layout.box()
-        typeBox.label(text="Included bake types")
-        typeBox.use_property_split = False
+        type_box = layout.box()
+        type_box.label(text="Included bake types")
+        type_box.use_property_split = False
 
         for key in context.scene.rtmb_types.__annotations__.keys():
-            typeBox.prop(context.scene.rtmb_types, key)
+            type_box.prop(context.scene.rtmb_types, key)
 
         layout.split()
 
@@ -232,9 +232,9 @@ class WM_OT_bake_modal(bpy.types.Operator):
         else:
             return False
 
-        bakeTypes = context.scene.rtmb_types
-        for key in bakeTypes.__annotations__.keys():
-            if getattr(bakeTypes, key):
+        bake_types = context.scene.rtmb_types
+        for key in bake_types.__annotations__.keys():
+            if getattr(bake_types, key):
                 return context.selected_objects and context.scene.render.engine == 'CYCLES' and not cls.is_running
         return False
 
@@ -305,31 +305,31 @@ class WM_OT_bake_modal(bpy.types.Operator):
         for object in context.selected_objects:
             bake_obj = object
 
-            for bakeType in includedTypes:
+            for bake_type in includedTypes:
 
                 # sub-operators can be stored on the macro itself
-                setattr(macro, f"bake_pre_{bake_obj.name}_{bakeType}",
+                setattr(macro, f"bake_pre_{bake_obj.name}_{bake_type}",
                         define(macro, "RTMB_OT_bake_pre"))
 
-                setattr(macro, f"bake_{bake_obj.name}_{bakeType}", define(
+                setattr(macro, f"bake_{bake_obj.name}_{bake_type}", define(
                     macro, sub_op))
 
-                setattr(macro, f"bake_post_{bake_obj.name}_{bakeType}",
+                setattr(macro, f"bake_post_{bake_obj.name}_{bake_type}",
                         define(macro, "RTMB_OT_bake_post"))
 
-                pre = getattr(macro, f"bake_pre_{bake_obj.name}_{bakeType}")
-                pre.properties.bake_type = bakeType
+                pre = getattr(macro, f"bake_pre_{bake_obj.name}_{bake_type}")
+                pre.properties.bake_type = bake_type
                 pre.properties.use_uv = context.scene.rtmb_props.use_uv
 
                 item = context.scene.rtmb_queue.add()
                 item.object = bake_obj
 
-                bake = getattr(macro, f"bake_{bake_obj.name}_{bakeType}")
-                bake.properties.type = bakeType
+                bake = getattr(macro, f"bake_{bake_obj.name}_{bake_type}")
+                bake.properties.type = bake_type
 
                 post = getattr(
-                    macro, f"bake_post_{bake_obj.name}_{bakeType}")
-                post.properties.bake_type = bakeType
+                    macro, f"bake_post_{bake_obj.name}_{bake_type}")
+                post.properties.bake_type = bake_type
                 post.properties.use_uv = context.scene.rtmb_props.use_uv
 
         # define a last sub-op that tells the modal the bakes are done
