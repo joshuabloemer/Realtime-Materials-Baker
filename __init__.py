@@ -14,15 +14,14 @@
 import bpy
 import _bpy
 import cycles
-import bmesh
 
 bl_info = {
     "name": "Realtime Materials Baker",
     "author": "Ducky 3D, Joshua Blömer",
     "description": "A simple addon that simplifies the process of baking textures",
     "blender": (2, 83, 0),
-    "version": (0, 9, 0),
-    "location": "N-Panel > Realtim Materials",
+    "version": (1, 0, 0),
+    "location": "N-Panel > Realtime Materials",
     "warning": "",
     "category": "Material"
 }
